@@ -815,21 +815,25 @@ class Qwen3ASRModel(nn.Module):
     def sanitize(weights: Dict[str, mx.array]) -> Dict[str, mx.array]:
         """Sanitize weights from HuggingFace/PyTorch format to MLX format."""
         sanitized = {}
-        is_formatted = not any(k.startswith("thinker.") for k in weights.keys())
+        native_hf = any(k.startswith("model.audio_tower.") for k in weights)
+        pytorch_layout = native_hf or any(k.startswith("thinker.") for k in weights)
 
         for k, v in weights.items():
-            if k.startswith("thinker."):
-                k = k[len("thinker.") :]
+            if native_hf:
+                if k.startswith("model.audio_tower."):
+                    k = k.removeprefix("model.")
+                elif k.startswith("model.language_model."):
+                    k = "model." + k.removeprefix("model.language_model.")
+                elif k.startswith("model.multi_modal_projector.linear_"):
+                    k = "audio_tower.proj" + k.removeprefix(
+                        "model.multi_modal_projector.linear_"
+                    )
+            else:
+                k = k.removeprefix("thinker.")
+                if k == "lm_head.weight":
+                    continue
 
-            if k == "lm_head.weight":
-                continue
-
-            if (
-                not is_formatted
-                and "conv2d" in k
-                and "weight" in k
-                and len(v.shape) == 4
-            ):
+            if pytorch_layout and "conv2d" in k and "weight" in k and len(v.shape) == 4:
                 v = v.transpose(0, 2, 3, 1)
 
             sanitized[k] = v

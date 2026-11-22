@@ -27,6 +27,11 @@ class AudioEncoderConfig:
 
     @classmethod
     def from_dict(cls, params: Dict[str, Any]) -> "AudioEncoderConfig":
+        if "max_position_embeddings" in params and "max_source_positions" not in params:
+            params = {
+                **params,
+                "max_source_positions": params["max_position_embeddings"],
+            }
         return cls(
             **{
                 k: v
@@ -61,6 +66,9 @@ class TextConfig:
 
     @classmethod
     def from_dict(cls, params: Dict[str, Any]) -> "TextConfig":
+        rope = params.get("rope_parameters") or {}
+        if "rope_theta" in rope and "rope_theta" not in params:
+            params = {**params, "rope_theta": rope["rope_theta"]}
         return cls(
             **{
                 k: v
